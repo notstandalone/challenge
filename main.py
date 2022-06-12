@@ -6,7 +6,7 @@ import json
 
 from config import parse_args
 from data_helper import create_dataloaders
-from model import MultiModal
+from model import MultiModal, MultiModal1
 from util import setup_device, setup_seed, setup_logging, build_optimizer, evaluate, convert_to_gpu
 
 
@@ -35,7 +35,7 @@ def train_and_validate(args):
     train_dataloader, val_dataloader = create_dataloaders(args)
 
     # 2. build model and optimizers
-    model = MultiModal(args)
+    model = MultiModal1(args)
     optimizer, scheduler = build_optimizer(args, model)
     # if args.device == 'cuda':
     #     model = torch.nn.parallel.DataParallel(model.to(args.device))

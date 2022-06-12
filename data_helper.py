@@ -147,7 +147,7 @@ class MultiModalDataset(Dataset):
         mask = torch.LongTensor(encoded_inputs['attention_mask'])
         return input_ids, mask
     
-    def tolenize_ocr(self, ocrs: list) -> tuple:
+    def tokenize_ocr(self, ocrs: list) -> tuple:
         """
         :ocrs: [{"time": 1, "text": "山西融媒12月21日安徽安"}, {}, ..., {}]
         """
@@ -158,8 +158,19 @@ class MultiModalDataset(Dataset):
         input_ids = torch.LongTensor(encoded_inputs['input_ids'])
         mask = torch.LongTensor(encoded_inputs['attention_mask'])
         return input_ids, mask
-            
     
+    def tokenize_texts(self, texts:dict) -> tuple:
+        '''
+        texts: {'title': str, 'asr': str, 'ocr': list}
+        '''
+        text = texts['title'] + texts['asr']
+        for ocr in texts['ocr']:
+            text += ocr['text']
+        encoded_inputs = self.tokenizer(text, max_length=3*self.bert_seq_length, padding='max_length', truncation=True)
+        input_ids = torch.LongTensor(encoded_inputs['input_ids'])
+        mask = torch.LongTensor(encoded_inputs['attention_mask'])
+        return input_ids, mask
+        
     def __getitem__(self, idx: int) -> dict:
         # Step 1, load visual features from zipfile.
         # frame_input shape = (max_frames, feat_dim), frame_mask shape = (max_frames)
@@ -168,8 +179,12 @@ class MultiModalDataset(Dataset):
         # Step 2, load text tokens, e.g title, asr, ocr
         title_input, title_mask = self.tokenize_text(self.anns[idx]['title'])
         asr_input, asr_mask = self.tokenize_text(self.anns[idx]['asr'])
-        ocr_input, ocr_mask = self.tolenize_ocr(self.anns[idx]['ocr'])
-
+        ocr_input, ocr_mask = self.tokenize_ocr(self.anns[idx]['ocr'])
+        
+        text_input, text_mask = self.tokenize_texts({'title': self.anns[idx]['title'],
+                                                     'asr': self.anns[idx]['asr'],
+                                                     'ocr': self.anns[idx]['ocr']})
+        
         # Step 3, summarize into a dictionary
         data = dict(
             frame_input=frame_input,
@@ -179,7 +194,9 @@ class MultiModalDataset(Dataset):
             asr_input=asr_input,
             asr_mask=asr_mask,
             ocr_input=ocr_input,
-            ocr_mask=ocr_mask
+            ocr_mask=ocr_mask,
+            text_input=text_input,
+            text_mask=text_mask
         )
 
         # Step 4, load label if not test mode

@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument('--pretrain_ckpt_file', type=str, default='../save/pretrain/model_epoch_0_loss_3.736_acc0.502.bin')
 
     # ======================== SavedModel Configs =========================
-    parser.add_argument('--savedmodel_path', type=str, default='../save/v9')
+    parser.add_argument('--savedmodel_path', type=str, default='../save/v10')
     parser.add_argument('--saved_pretrain_model_path', type=str, default='../save/pretrain')
     parser.add_argument('--ckpt_file', type=str, default='../save/v8/model_epoch_3_mean_f1_0.6391.bin')
     parser.add_argument('--best_score', default=0.5, type=float, help='save checkpoint if mean_f1 > best_score')

@@ -19,7 +19,7 @@ def convert_to_gpu(batch, device):
 
 
 def setup_device(args):
-    args.device = 'cuda:2' if torch.cuda.is_available() else 'cpu'
+    args.device = 'cuda:1' if torch.cuda.is_available() else 'cpu'
     args.n_gpu = torch.cuda.device_count()
 
 

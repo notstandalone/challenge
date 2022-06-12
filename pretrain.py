@@ -76,7 +76,7 @@ def train_and_validate(args):
         if loss < best_loss:
             best_loss = loss
             state_dict = model.module.state_dict() if args.device == 'cuda' else model.state_dict()
-            torch.save({'epoch': epoch, 'model_state_dict': state_dict},
+            torch.save({'epoch': epoch, 'model_state_dict': state_dict})
                        f'{args.saved_pretrain_model_path}/model_epoch_{epoch}_loss_{loss:.3f}_acc{accuracy:.3f}.bin')
 
 

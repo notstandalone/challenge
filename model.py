@@ -165,7 +165,76 @@ class MultiModal(nn.Module):
             pred_label_id = torch.argmax(prediction, dim=1)
             accuracy = (label == pred_label_id).float().sum() / label.shape[0]
         return loss, accuracy, pred_label_id, label        
+
+
+# for finetune 
+class MultiModal1(nn.Module):
+    def __init__(self, args):
+        super(MultiModal1, self).__init__()
         
+        self.bert_embedding_layer = bert_embedding_layer()
+        self.names = ["title", "asr", "ocr"]
+        
+        bert_output_size = 768
+        self.frame_layer = nn.Sequential(
+            nn.Linear(args.frame_embedding_size, bert_output_size),
+            nn.LeakyReLU(),
+            nn.LayerNorm(bert_output_size)
+        )
+        
+        self.bert = BertModel.from_pretrained(args.bert_dir, cache_dir=args.bert_cache)
+        
+        # classifier layer
+        self.fc = nn.Linear(bert_output_size, len(CATEGORY_ID_LIST))
+        
+        self.dropout = nn.Dropout(args.dropout)
+        
+        self.reset_parameter()
+        
+    def reset_parameter(self):
+        print("reset_parameter...")
+        param_dict = {'word_embeddings.weight': self.bert.state_dict()['embeddings.word_embeddings.weight'],
+                      'layernorm.weight': self.bert.state_dict()['embeddings.LayerNorm.weight'],
+                      'layernorm.bias': self.bert.state_dict()['embeddings.LayerNorm.bias']}
+        self.bert_embedding_layer.load_state_dict(param_dict)
+        
+    def forward(self,  inputs, inference=False):
+        """
+        param:inputs = {"frame":tensor(bs, ), "title":tensor, "ocr":tensor, "asr":tensor, "label"}
+        return: shape = (batch_size, len(class))
+        """
+        # step 1, text
+        text_embedding = self.bert_embedding_layer(inputs[f"text_input"])  # shape = (batch_size, text_length, embed_dim)
+        
+        # step 2, frame
+        frame_embedding = self.frame_layer(inputs[f"frame_input"])   # shape = (batch_size, frame_size, embed_dim) 
+        
+        # step 3, bert
+        # shape = (batch_size, text_length+frame_size, embed_dim)
+        input_embedding = torch.cat([text_embedding, frame_embedding], dim=1) 
+        # mask shape = (batch_size, text_length+frame_size) 
+        input_mask = torch.cat([inputs["text_mask"], inputs["frame_mask"]], dim=1) 
+        # shape = (batch_size, text_length+frame_size, embed_dim) ->(batch_size, embed_dim)
+        output_embedding = self.bert(inputs_embeds=input_embedding, attention_mask=input_mask)["pooler_output"]
+        
+        # step 4, classify
+        # output_embedding = torch.mean(output_embedding, dim=1)  # shape = (batch_size, embed_dim)
+        prediction = self.fc(output_embedding)  # shape = (batch_size, len(class))
+        
+        if inference:
+            return torch.argmax(prediction, dim=1)
+        else:
+            return self.cal_loss(prediction, inputs['label'])
+    
+    @staticmethod
+    def cal_loss(prediction, label):
+        label = label.squeeze(dim=1)
+        loss = F.cross_entropy(prediction, label)
+        with torch.no_grad():
+            pred_label_id = torch.argmax(prediction, dim=1)
+            accuracy = (label == pred_label_id).float().sum() / label.shape[0]
+        return loss, accuracy, pred_label_id, label        
+
         
 class MultiModalModel(nn.Module):
     def __init__(self, args):
@@ -196,8 +265,24 @@ class MultiModalModel(nn.Module):
         vision_embedding = self.enhance(vision_embedding)
         
         return bert_embedding, vision_embedding
-    
-    
+  
+
+class bert_embedding_layer(nn.Module):
+    def __init__(self, num_words=21128, embedding_dim=768):
+        super().__init__()
+        self.num_words = num_words
+        self.embedding_dim = embedding_dim
+        self.word_embeddings = nn.Embedding(num_words, embedding_dim)
+        self.layernorm = nn.LayerNorm(embedding_dim)
+    def forward(self, x):
+        '''
+        param: x tensor, shape = (batch_size, length)
+        return: tensor shape (batch_size, length, emebdding_dim)
+        '''
+        x = self.word_embeddings(x)
+        return self.layernorm(x)
+
+
 
 class NeXtVLAD(nn.Module):
     def __init__(self, feature_size, cluster_size, output_size=1024, expansion=2, groups=8, dropout=0.2):
